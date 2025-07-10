@@ -255,3 +255,33 @@ def generate_trustworthy_report(problem_def: str, fairness_input: str, explainab
     except Exception as e:
         st.error(f"LLM 호출 중 오류 발생: {e}")
         return f"오류 발생: {e}"
+
+# gemini_agent.py 에 추가할 내용
+
+def refine_content(original_text: str, instruction: str) -> str:
+    """
+    원본 텍스트를 주어진 지시에 따라 수정(Refine)합니다.
+    """
+    if not GEMINI_ENABLED:
+        return "오류: Gemini API 키가 설정되지 않았습니다."
+    
+    prompt = f"""
+    당신은 뛰어난 문서 편집 전문가(Expert Editor)입니다.
+    아래에 주어진 "원본 텍스트"를 "편집 지시"에 따라 수정하여, 완성된 결과물만 응답해주세요.
+
+    ---
+    **[편집 지시]**
+    {instruction}
+    ---
+    **[원본 텍스트]**
+    {original_text}
+    ---
+    """
+    
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        st.error(f"LLM 호출 중 오류 발생: {e}")
+        return f"오류 발생: {e}"
