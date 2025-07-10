@@ -1,83 +1,68 @@
-# app.py (최종 수정 버전)
+# pages/1_요구정의.py (최종 수정 버전)
 
 import streamlit as st
-from core.persistence import init_db, get_all_projects, create_project, delete_project, update_project
-from datetime import datetime
+from core.persistence import get_all_projects, save_artifact, get_artifacts_for_project
+from agents.gemini_agent import generate_problem_definition
 
-# DB 초기화는 한 번만 실행
-init_db()
+st.set_page_config(page_title="요구사항 정의", layout="wide")
+st.title("1. 요구사항 정의")
+st.markdown("---")
 
-st.set_page_config(page_title="MCP 기반 AI 개발 플랫폼", layout="wide")
-st.title("🚀 MCP 기반 AI 개발 플랫폼")
+# --- 1. 작업할 프로젝트 선택 ---
+st.header("Step 1: 작업할 프로젝트 선택")
 
-# --- session_state 초기화 ---
-if 'editing_project' not in st.session_state:
-    st.session_state.editing_project = None
+# session_state에 선택된 프로젝트가 없으면 선택 유도
+if 'selected_project_id' not in st.session_state:
+    st.session_state.selected_project_id = None
 
-# --- 사이드바: 프로젝트 생성 또는 수정 ---
-with st.sidebar:
-    if st.session_state.editing_project:
-        st.header("📝 프로젝트 수정")
-        proj = st.session_state.editing_project
-        with st.form("edit_project_form"):
-            st.write(f"**ID: {proj['id']}**")
-            name = st.text_input("프로젝트 이름", value=proj['name'])
-            desc = st.text_area("프로젝트 설명", value=proj['description'])
-            col1, col2 = st.columns(2)
-            if col1.form_submit_button("저장하기", type="primary"):
-                update_project(proj['id'], name, desc)
-                st.toast("프로젝트가 수정되었습니다.")
-                st.session_state.editing_project = None
-                st.rerun()
-            if col2.form_submit_button("취소"):
-                st.session_state.editing_project = None
-                st.rerun()
-    else:
-        st.header("새 프로젝트 생성")
-        with st.form("new_project_form", clear_on_submit=True):
-            name = st.text_input("프로젝트 이름")
-            desc = st.text_area("프로젝트 설명")
-            if st.form_submit_button("생성하기", type="primary"):
-                if name:
-                    if create_project(name, desc):
-                        st.toast("프로젝트가 생성되었습니다.")
-                        st.rerun()
-                    else:
-                        st.error("이미 존재하는 프로젝트 이름입니다.")
-                else:
-                    st.error("프로젝트 이름을 입력해주세요.")
-
-# --- 메인 화면: 프로젝트 목록 및 관리 ---
-st.header("프로젝트 목록")
 projects = get_all_projects()
 
-# 테이블 헤더
-header_cols = st.columns([1, 3, 4, 2, 2])
-header_cols[0].write("**ID**")
-header_cols[1].write("**이름**")
-header_cols[2].write("**설명**")
-header_cols[3].write("**생성일**")
-header_cols[4].write("**관리**")
-st.divider()
-
 if not projects:
-    st.info("아직 생성된 프로젝트가 없습니다. 왼쪽 사이드바에서 새 프로젝트를 생성해주세요.")
-else:
-    for proj in projects:
-        row_cols = st.columns([1, 3, 4, 2, 2])
-        row_cols[0].write(proj['id'])
-        row_cols[1].write(proj['name'])
-        row_cols[2].write(proj['description'])
-        dt_object = datetime.fromisoformat(proj['created_at'])
-        row_cols[3].write(dt_object.strftime('%Y-%m-%d %H:%M'))
-        
-        button_col = row_cols[4]
-        if button_col.button("수정", key=f"edit_{proj['id']}"):
-            st.session_state.editing_project = proj
+    st.warning("진행 중인 프로젝트가 없습니다. 메인 대시보드에서 새 프로젝트를 먼저 생성해주세요.")
+    st.stop()
+
+project_names = {p['id']: p['name'] for p in projects}
+selected_id = st.selectbox(
+    "프로젝트를 선택하세요.",
+    options=list(project_names.keys()),
+    format_func=lambda x: project_names[x],
+    key='selected_project_id'
+)
+
+if selected_id:
+    st.info(f"선택된 프로젝트: **{project_names[selected_id]}** (ID: {selected_id})")
+    
+    # (이하 UI 및 기능 코드는 이전과 거의 동일)
+    st.header("Step 2: 문제정의서 생성")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        use_case = st.text_area("사용 목적", "예: 고객센터로 인입되는 민원 텍스트를 유형별로 자동 분류", height=150)
+    with col2:
+        background = st.text_area("도입 배경", "예: 현재 민원 처리가 수작업으로 이루어져 응답 시간이 길고...", height=150)
+    with col3:
+        expected_effect = st.text_area("기대 효과", "예: 민원당 평균 응답 시간 20% 단축...", height=150)
+
+    if st.button("🤖 AI로 문제정의서 생성하기", type="primary", use_container_width=True):
+        with st.spinner("Gemini 에이전트가 문제정의서를 작성하고 있습니다..."):
+            prompt_input = {"use_case": use_case, "background": background, "expected_effect": expected_effect}
+            generated_text = generate_problem_definition(prompt_input)
+            st.session_state['generated_problem_def'] = generated_text
+
+    if 'generated_problem_def' in st.session_state and st.session_state['generated_problem_def']:
+        st.subheader("📝 생성된 문제정의서 초안")
+        final_text = st.text_area("내용을 검토하고 수정하세요.", value=st.session_state.generated_problem_def, height=400)
+        if st.button("💾 데이터베이스에 저장하기", use_container_width=True):
+            save_artifact(project_id=selected_id, stage="REQUIREMENT", type="PROBLEM_DEF", content=final_text)
+            st.success("문제정의서가 성공적으로 저장되었습니다.")
+            del st.session_state['generated_problem_def']
             st.rerun()
-        
-        button_col2 = row_cols[5]
-        if button_col2.button("삭제", key=f"delete_{proj['id']}", type="secondary"):
-            delete_project(proj['id'])
-            st.toast(f"프로젝트 '{proj['name']}'가 삭제되었습니다.")
-            st.rerun()
+
+    st.markdown("---")
+    st.header("📜 저장된 문제정의서 이력")
+    artifacts = get_artifacts_for_project(selected_id, "PROBLEM_DEF")
+    if artifacts:
+        for i, artifact in enumerate(artifacts):
+            with st.expander(f"버전 {len(artifacts) - i} ({artifact['created_at']})"):
+                st.markdown(artifact['content'])
+    else:
+        st.info("이 프로젝트에 저장된 문제정의서가 없습니다.")
