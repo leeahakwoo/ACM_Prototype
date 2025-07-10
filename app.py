@@ -1,7 +1,7 @@
-# app.py (최종 수정 버전)
+# app.py (최종 구조 적용 버전)
 
 import streamlit as st
-from core.persistence import init_db, get_all_projects, create_project, delete_project, update_project
+from persistence import init_db, get_all_projects, create_project, delete_project, update_project
 from datetime import datetime
 
 # DB 초기화는 한 번만 실행
@@ -61,23 +61,4 @@ header_cols[4].write("**관리**")
 st.divider()
 
 if not projects:
-    st.info("아직 생성된 프로젝트가 없습니다. 왼쪽 사이드바에서 새 프로젝트를 생성해주세요.")
-else:
-    for proj in projects:
-        row_cols = st.columns([1, 3, 4, 2, 2])
-        row_cols[0].write(proj['id'])
-        row_cols[1].write(proj['name'])
-        row_cols[2].write(proj['description'])
-        dt_object = datetime.fromisoformat(proj['created_at'])
-        row_cols[3].write(dt_object.strftime('%Y-%m-%d %H:%M'))
-        
-        button_col = row_cols[4]
-        if button_col.button("수정", key=f"edit_{proj['id']}"):
-            st.session_state.editing_project = proj
-            st.rerun()
-        
-        button_col2 = row_cols[5]
-        if button_col2.button("삭제", key=f"delete_{proj['id']}", type="secondary"):
-            delete_project(proj['id'])
-            st.toast(f"프로젝트 '{proj['name']}'가 삭제되었습니다.")
-            st.rerun()
+    st
