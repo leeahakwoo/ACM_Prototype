@@ -3,6 +3,7 @@
 import google.generativeai as genai
 import streamlit as st
 import re
+import pandas as pd
 
 # ... (API 설정은 동일)
 try:
@@ -285,3 +286,56 @@ def refine_content(original_text: str, instruction: str) -> str:
     except Exception as e:
         st.error(f"LLM 호출 중 오류 발생: {e}")
         return f"오류 발생: {e}"
+
+def generate_test_cases(design_doc: str, scenario: str, num_cases: int = 5) -> str:
+    """
+    모델 설계서와 시나리오를 바탕으로 단위 테스트 케이스를 생성합니다.
+    """
+    if not GEMINI_ENABLED:
+        return "오류: Gemini API 키가 설정되지 않았습니다."
+
+    prompt = f"""
+    당신은 QA(Quality Assurance) 전문가입니다.
+    아래 주어진 '모델 설계서' 내용과 '테스트 시나리오'를 바탕으로, 모델의 기능을 검증하기 위한 구체적인 단위 테스트 케이스 {num_cases}개를 생성해주세요.
+    결과는 반드시 마크다운 테이블 형식으로, "TC_ID", "테스트 설명", "입력값 (JSON)", "예상 출력값 (JSON)" 컬럼을 포함해야 합니다.
+
+    ---
+    **[모델 설계서]**
+    {design_doc}
+    ---
+    **[테스트 시나리오]**
+    {scenario}
+    ---
+
+    **요구 형식 (마크다운 테이블):**
+
+    | TC_ID | 테스트 설명 | 입력값 (JSON) | 예상 출력값 (JSON) |
+    |---|---|---|---|
+    | TC-001 | ... | ... | ... |
+    """
+    
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        st.error(f"LLM 호출 중 오류 발생: {e}")
+        return f"오류 발생: {e}"
+
+def convert_markdown_to_df(markdown_table: str) -> pd.DataFrame:
+    """마크다운 테이블 형식의 문자열을 Pandas DataFrame으로 변환합니다."""
+    try:
+        lines = markdown_table.strip().split('\n')
+        header_line = lines[0]
+        data_lines = lines[2:]
+        headers = [h.strip() for h in header_line.split('|') if h.strip()]
+        data = []
+        for line in data_lines:
+            row = [d.strip() for d in line.split('|') if d.strip()]
+            if len(row) == len(headers):
+                data.append(row)
+        df = pd.DataFrame(data, columns=headers)
+        return df
+    except Exception as e:
+        print(f"DataFrame 변환 오류: {e}")
+        return pd.DataFrame()
