@@ -1,260 +1,112 @@
-# app.py - 메인 앱 파일 수정 사항
+# app.py (AttributeError 해결 및 로직 최종 단순화)
 
 import streamlit as st
-import sqlite3
-import pandas as pd
 from datetime import datetime
-import traceback
 import sys
 import os
 
-# 디버깅 모드 활성화
-DEBUG_MODE = True
+# --- 경로 설정 (가장 먼저 실행) ---
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-def debug_info(message):
-    """디버깅 정보 출력"""
-    if DEBUG_MODE:
-        st.sidebar.write(f"🔍 DEBUG: {message}")
+from persistence import init_db, get_all_projects, create_project, delete_project, update_project
 
-def init_database():
-    """데이터베이스 초기화"""
-    try:
-        conn = sqlite3.connect('projects.db', check_same_thread=False)
-        cursor = conn.cursor()
-        
-        # 테이블 생성 (존재하지 않으면)
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS projects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT,
-                status TEXT DEFAULT 'active',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        conn.commit()
-        debug_info("데이터베이스 초기화 완료")
-        return conn
-        
-    except Exception as e:
-        st.error(f"데이터베이스 초기화 오류: {str(e)}")
-        st.text(traceback.format_exc())
-        return None
+# --- 앱 초기화 ---
+init_db()
 
-def init_session_state():
-    """세션 상태 초기화"""
-    if 'db_connection' not in st.session_state:
-        st.session_state.db_connection = init_database()
-    
-    if 'projects' not in st.session_state:
-        st.session_state.projects = []
-    
-    if 'current_project' not in st.session_state:
-        st.session_state.current_project = None
-    
-    debug_info(f"세션 상태 키: {list(st.session_state.keys())}")
+st.set_page_config(page_title="MCP 기반 AI 개발 플랫폼", layout="wide")
+st.title("🚀 MCP 기반 AI 개발 플랫폼")
 
-def create_project(name, description):
-    """프로젝트 생성"""
-    try:
-        conn = st.session_state.db_connection
-        if not conn:
-            st.error("데이터베이스 연결이 없습니다.")
-            return False
-        
-        cursor = conn.cursor()
-        
-        # 프로젝트 삽입
-        cursor.execute('''
-            INSERT INTO projects (name, description, status, created_at)
-            VALUES (?, ?, ?, ?)
-        ''', (name, description, 'active', datetime.now()))
-        
-        # 반드시 커밋
-        conn.commit()
-        
-        project_id = cursor.lastrowid
-        debug_info(f"프로젝트 생성 완료: ID={project_id}")
-        
-        # 세션 상태 업데이트
-        st.session_state.current_project = project_id
-        
-        return True
-        
-    except Exception as e:
-        st.error(f"프로젝트 생성 오류: {str(e)}")
-        st.text(traceback.format_exc())
-        return False
+# --- session_state 관리 ---
+# st.session_state를 사용하여 현재 수정 중인 프로젝트 ID를 관리합니다.
+if 'editing_project_id' not in st.session_state:
+    st.session_state.editing_project_id = None
 
-def get_projects():
-    """모든 프로젝트 조회"""
-    try:
-        conn = st.session_state.db_connection
-        if not conn:
-            debug_info("데이터베이스 연결이 없음")
-            return pd.DataFrame()
-        
-        # 데이터 조회
-        query = "SELECT id, name, description, status, created_at FROM projects ORDER BY created_at DESC"
-        df = pd.read_sql_query(query, conn)
-        
-        debug_info(f"조회된 프로젝트 수: {len(df)}")
-        
-        # 빈 데이터프레임인 경우 샘플 데이터 생성
-        if df.empty:
-            debug_info("프로젝트 데이터가 없음")
-            return pd.DataFrame({
-                'ID': [],
-                '이름': [],
-                '설명': [],
-                '상태': [],
-                '생성일': []
-            })
-        
-        # 컬럼명 한글로 변경
-        df.columns = ['ID', '이름', '설명', '상태', '생성일']
-        
-        return df
-        
-    except Exception as e:
-        st.error(f"프로젝트 조회 오류: {str(e)}")
-        st.text(traceback.format_exc())
-        return pd.DataFrame()
+# --- 함수 정의 ---
+def switch_to_edit_mode(project_id):
+    """수정 모드로 전환하는 함수"""
+    st.session_state.editing_project_id = project_id
 
-def validate_environment():
-    """환경 설정 검증"""
-    st.sidebar.header("환경 검증")
-    
-    checks = []
-    
-    # 1. Python 버전 확인
-    python_version = sys.version
-    checks.append(("Python 버전", python_version))
-    
-    # 2. 필수 패키지 확인
-    required_packages = [
-        'streamlit', 'sqlite3', 'pandas', 'datetime'
-    ]
-    
-    for package in required_packages:
-        try:
-            if package == 'sqlite3':
-                import sqlite3
-                checks.append((f"패키지 {package}", "✅ 설치됨"))
-            elif package == 'streamlit':
-                import streamlit
-                checks.append((f"패키지 {package}", f"✅ v{streamlit.__version__}"))
-            elif package == 'pandas':
-                import pandas
-                checks.append((f"패키지 {package}", f"✅ v{pandas.__version__}"))
-            else:
-                __import__(package)
-                checks.append((f"패키지 {package}", "✅ 설치됨"))
-        except ImportError:
-            checks.append((f"패키지 {package}", "❌ 누락"))
-    
-    # 3. 데이터베이스 연결 확인
-    try:
-        conn = st.session_state.get('db_connection')
-        if conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = cursor.fetchall()
-            checks.append(("DB 연결", f"✅ 테이블 {len(tables)}개"))
-        else:
-            checks.append(("DB 연결", "❌ 연결 없음"))
-    except Exception as e:
-        checks.append(("DB 연결", f"❌ 오류: {str(e)}"))
-    
-    # 4. Gemini API 키 확인
-    try:
-        api_key = st.secrets.get("GEMINI_API_KEY")
-        if api_key:
-            checks.append(("Gemini API Key", f"✅ 설정됨 (길이: {len(api_key)})"))
-        else:
-            checks.append(("Gemini API Key", "❌ 미설정"))
-    except Exception as e:
-        checks.append(("Gemini API Key", f"❌ 오류: {str(e)}"))
-    
-    # 검증 결과 표시
-    for check_name, result in checks:
-        st.sidebar.text(f"{check_name}: {result}")
+def switch_to_create_mode():
+    """생성 모드로 전환하는 함수"""
+    st.session_state.editing_project_id = None
 
-def main():
-    """메인 함수"""
-    st.set_page_config(
-        page_title="MCP 기반 AI 개발 플랫폼",
-        page_icon="🚀",
-        layout="wide"
-    )
-    
-    # 세션 상태 초기화
-    init_session_state()
-    
-    # 환경 검증 (디버깅 모드일 때만)
-    if DEBUG_MODE:
-        validate_environment()
-    
-    # 메인 화면
-    st.title("🚀 MCP 기반 AI 개발 플랫폼")
-    
-    # 프로젝트 목록 섹션
-    st.header("프로젝트 목록")
-    
-    # 프로젝트 데이터 조회
-    projects_df = get_projects()
-    
-    if not projects_df.empty:
-        st.dataframe(projects_df, use_container_width=True)
-    else:
-        st.info("생성된 프로젝트가 없습니다.")
-    
-    # 새 프로젝트 생성 섹션
-    st.header("새 프로젝트 생성")
-    
-    with st.form("new_project_form"):
-        col1, col2 = st.columns(2)
+# --- 사이드바 UI ---
+with st.sidebar:
+    # 수정 모드일 때
+    if st.session_state.editing_project_id:
+        st.header("📝 프로젝트 수정")
         
-        with col1:
-            project_name = st.text_input("프로젝트 이름", placeholder="프로젝트 이름을 입력하세요")
+        # 현재 수정 중인 프로젝트 정보 찾기
+        proj_to_edit = next((p for p in get_all_projects() if p['id'] == st.session_state.editing_project_id), None)
         
-        with col2:
-            project_description = st.text_area("프로젝트 설명", placeholder="프로젝트 설명을 입력하세요")
-        
-        submitted = st.form_submit_button("프로젝트 생성")
-        
-        if submitted:
-            if project_name and project_description:
-                if create_project(project_name, project_description):
-                    st.success("프로젝트가 성공적으로 생성되었습니다!")
-                    st.experimental_rerun()
-                else:
-                    st.error("프로젝트 생성에 실패했습니다.")
-            else:
-                st.error("프로젝트 이름과 설명을 모두 입력해주세요.")
-    
-    # 데이터베이스 상태 표시 (디버깅 모드)
-    if DEBUG_MODE:
-        st.header("데이터베이스 상태")
-        try:
-            conn = st.session_state.db_connection
-            if conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM projects")
-                count = cursor.fetchone()[0]
-                st.write(f"총 프로젝트 수: {count}")
+        if proj_to_edit:
+            with st.form("edit_form"):
+                name = st.text_input("프로젝트 이름", value=proj_to_edit['name'])
+                desc = st.text_area("프로젝트 설명", value=proj_to_edit['description'])
                 
-                # 최근 프로젝트 5개 표시
-                cursor.execute("SELECT * FROM projects ORDER BY created_at DESC LIMIT 5")
-                recent = cursor.fetchall()
-                if recent:
-                    st.write("최근 프로젝트:")
-                    for project in recent:
-                        st.write(f"ID: {project[0]}, 이름: {project[1]}, 설명: {project[2]}")
-        except Exception as e:
-            st.error(f"데이터베이스 상태 확인 오류: {str(e)}")
+                # 버튼을 가로로 배치
+                col1, col2 = st.columns(2)
+                if col1.form_submit_button("저장", type="primary"):
+                    update_project(st.session_state.editing_project_id, name, desc)
+                    st.toast("프로젝트가 수정되었습니다.")
+                    switch_to_create_mode() # 생성 모드로 전환
+                    st.rerun() # ★★★ st.experimental_rerun() -> st.rerun() 으로 변경
+                if col2.form_submit_button("취소"):
+                    switch_to_create_mode() # 생성 모드로 전환
+                    st.rerun() # ★★★ st.experimental_rerun() -> st.rerun() 으로 변경
 
-if __name__ == "__main__":
-    main()
+    # 생성 모드일 때
+    else:
+        st.header("새 프로젝트 생성")
+        with st.form("new_project_form", clear_on_submit=True):
+            name = st.text_input("프로젝트 이름")
+            desc = st.text_area("프로젝트 설명")
+            
+            if st.form_submit_button("생성하기"):
+                if name:
+                    if create_project(name, desc):
+                        st.toast("프로젝트가 생성되었습니다.")
+                        st.rerun() # ★★★ st.experimental_rerun() -> st.rerun() 으로 변경
+                    else:
+                        st.error("이미 존재하는 프로젝트 이름입니다.")
+                else:
+                    st.error("프로젝트 이름을 입력해주세요.")
+
+# --- 메인 화면: 프로젝트 목록 ---
+st.header("프로젝트 목록")
+projects = get_all_projects()
+
+# 테이블 헤더
+header_cols = st.columns([1, 3, 4, 2, 2])
+header_cols[0].write("**ID**")
+header_cols[1].write("**이름**")
+header_cols[2].write("**설명**")
+header_cols[3].write("**생성일**")
+header_cols[4].write("**관리**")
+st.divider()
+
+if not projects:
+    st.info("생성된 프로젝트가 없습니다. 왼쪽 사이드바에서 새 프로젝트를 생성해주세요.")
+else:
+    for proj in projects:
+        row_cols = st.columns([1, 3, 4, 2, 2])
+        row_cols[0].write(proj['id'])
+        row_cols[1].write(proj['name'])
+        row_cols[2].write(proj['description'])
+        
+        try:
+            dt_object = datetime.fromisoformat(proj['created_at'])
+            row_cols[3].write(dt_object.strftime('%Y-%m-%d %H:%M'))
+        except:
+            row_cols[3].write(proj['created_at'])
+        
+        # 수정 버튼
+        if row_cols[4].button("수정", key=f"edit_{proj['id']}"):
+            switch_to_edit_mode(proj['id'])
+            st.rerun() # ★★★ st.experimental_rerun() -> st.rerun() 으로 변경
+        
+        # 삭제 버튼
+        if row_cols[5].button("삭제", key=f"delete_{proj['id']}", type="secondary"):
+            delete_project(proj['id'])
+            st.toast(f"프로젝트 '{proj['name']}'가 삭제되었습니다.")
+            st.rerun() # ★★★ st.experimental_rerun() -> st.rerun() 으로 변경
