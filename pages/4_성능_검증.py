@@ -1,4 +1,4 @@
-# pages/4_성능_검증.py
+# pages/4_성능_검증.py (콘텐츠 발전 모듈 적용 버전)
 
 import streamlit as st
 from datetime import datetime
@@ -12,15 +12,24 @@ import matplotlib.font_manager as fm
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from persistence import save_artifact, get_artifacts_for_project
-from gemini_agent import generate_performance_report
+# gemini_agent에서 필요한 모든 함수를 import
+from gemini_agent import generate_performance_report, refine_content
 
 # Matplotlib 한글 폰트 설정
-# Streamlit Cloud 배포 시에는 Nanum 폰트를 사용할 수 있도록 설정 필요
 try:
     font_path = fm.findfont("NanumGothic", fallback_to_default=True)
-    plt.rc("font", family="NanumGothic")
-except:
-    st.warning("나눔고딕 폰트를 찾을 수 없습니다. 차트의 한글이 깨질 수 있습니다.")
+    if font_path:
+        plt.rc("font", family="NanumGothic")
+    else:
+        # NanumGothic이 없을 경우, 시스템의 기본 폰트 사용 시도
+        # macOS의 경우 'AppleGothic', Windows의 경우 'Malgun Gothic'
+        # 이도 없으면 기본 sans-serif 사용
+        if sys.platform == "darwin":
+            plt.rc("font", family="AppleGothic")
+        elif sys.platform == "win32":
+            plt.rc("font", family="Malgun Gothic")
+except Exception as e:
+    st.warning(f"한글 폰트를 설정하는 중 오류가 발생했습니다: {e}")
 plt.rcParams['axes.unicode_minus'] = False
 
 
@@ -31,20 +40,14 @@ st.markdown("---")
 
 # --- 1. 선택된 프로젝트 정보 확인 ---
 selected_id = st.session_state.get('selected_project_id', None)
-
 if not selected_id:
     st.error("선택된 프로젝트가 없습니다. 메인 페이지(app)로 돌아가 작업할 프로젝트를 먼저 선택해주세요.")
     st.stop()
-
-# 해당 프로젝트의 최신 '모델 설계서' 불러오기
 design_doc_artifacts = get_artifacts_for_project(selected_id, "MODEL_DESIGN")
-
 if not design_doc_artifacts:
     st.warning("이 프로젝트에 대한 '모델 설계서'가 없습니다. '설계' 페이지에서 먼저 작성해주세요.")
     st.stop()
-
 latest_design_doc = design_doc_artifacts[0]['content']
-
 st.header(f"프로젝트: {st.session_state.get('selected_project_name', 'N/A')}")
 with st.expander("참고: 이 프로젝트의 모델 설계서 보기"):
     st.markdown(latest_design_doc)
@@ -64,54 +67,67 @@ def remove_metric(index):
 
 for i, metric in enumerate(st.session_state.metrics):
     col1, col2, col3 = st.columns([3, 2, 1])
-    st.session_state.metrics[i]['name'] = col1.text_input("지표 이름", value=metric['name'], key=f"metric_name_{i}")
-    st.session_state.metrics[i]['value'] = col2.number_input("값", value=metric['value'], key=f"metric_value_{i}", format="%.4f")
-    col3.button("삭제", on_click=remove_metric, args=(i,), key=f"remove_metric_{i}", use_container_width=True)
+    st.session_state.metrics[i]['name'] = col1.text_input("지표 이름", value=metric['name'], key=f"perf_metric_name_{i}")
+    st.session_state.metrics[i]['value'] = col2.number_input("값", value=metric['value'], key=f"perf_metric_value_{i}", format="%.4f")
+    col3.button("삭제", on_click=remove_metric, args=(i,), key=f"perf_remove_metric_{i}", use_container_width=True)
 
 st.button("➕ 지표 추가", on_click=add_metric, use_container_width=True)
 
-# --- 3. AI 리포트 생성 및 저장 ---
+# --- 3. AI 리포트 생성 ---
 st.markdown("---")
 if st.button("🤖 AI로 성능 평가 리포트 생성하기", type="primary", use_container_width=True):
-    # 입력된 메트릭을 딕셔너리 형태로 변환
     metrics_dict = {m['name']: m['value'] for m in st.session_state.metrics if m['name']}
-    
     if not metrics_dict:
         st.error("하나 이상의 유효한 성능 지표를 입력해주세요.")
     else:
         with st.spinner("Gemini 에이전트가 성능을 분석하고 리포트를 작성하고 있습니다..."):
             report_text = generate_performance_report(latest_design_doc, metrics_dict)
             st.session_state['generated_perf_report'] = report_text
-            st.session_state['final_metrics_for_report'] = metrics_dict
+            st.session_state['current_perf_metrics'] = metrics_dict # 시각화 및 저장을 위해 현재 메트릭 저장
+            st.rerun()
 
-# 생성된 결과 표시
+# --- 4. 생성 결과 확인, 발전 및 저장 ---
 if 'generated_perf_report' in st.session_state:
-    st.subheader("📝 생성된 성능 평가 리포트")
-    
-    report_content = st.session_state['generated_perf_report']
-    metrics_content = st.session_state['final_metrics_for_report']
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown(report_content)
+    st.subheader("Step 2: 생성된 리포트 발전시키기")
 
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.session_state['generated_perf_report'] = st.text_area(
+            "내용을 검토하고 직접 수정하거나, 아래 AI 도구를 사용해 보세요.",
+            value=st.session_state.generated_perf_report,
+            height=400,
+            key="perf_report_editor"
+        )
     with col2:
         # 시각화
-        df_metrics = pd.DataFrame(list(metrics_content.items()), columns=['Metric', 'Value'])
-        fig, ax = plt.subplots()
-        ax.bar(df_metrics['Metric'], df_metrics['Value'], color='skyblue')
-        ax.set_ylabel('Score')
-        ax.set_title('Performance Metrics')
-        ax.tick_params(axis='x', rotation=45)
-        st.pyplot(fig)
+        metrics_to_plot = st.session_state.get('current_perf_metrics', {})
+        if metrics_to_plot:
+            df_metrics = pd.DataFrame(list(metrics_to_plot.items()), columns=['Metric', 'Value'])
+            fig, ax = plt.subplots()
+            ax.bar(df_metrics['Metric'], df_metrics['Value'], color='skyblue')
+            ax.set_ylabel('Score')
+            ax.set_title('Performance Metrics')
+            ax.tick_params(axis='x', rotation=45)
+            st.pyplot(fig)
 
-    if st.button("💾 이 리포트를 이력으로 저장하기", use_container_width=True):
-        # 저장할 전체 내용 구성
-        full_content = f"# 성능 평가 리포트\n\n## 성능 지표\n\n"
-        for name, value in metrics_content.items():
-            full_content += f"- {name}: {value}\n"
-        full_content += f"\n## 종합 분석\n\n{report_content}"
+    st.markdown("---")
+    st.write("🤖 **AI 편집 도구모음**")
+    current_text = st.session_state.perf_report_editor
+    
+    custom_instruction = st.text_input("직접 편집 지시하기 (예: 이 리포트 내용을 비전문가도 이해하기 쉽게 다시 써줘)")
+    if st.button("실행", disabled=not custom_instruction, key="custom_perf_report"):
+        with st.spinner("AI가 당신의 지시를 수행하고 있습니다..."):
+            refined_text = refine_content(current_text, custom_instruction)
+            st.session_state.generated_perf_report = refined_text
+            st.rerun()
+            
+    st.markdown("---")
+    st.subheader("Step 3: 최종본 저장")
+    if st.button("💾 이 최종 리포트를 이력으로 저장하기", type="primary", use_container_width=True):
+        final_metrics = st.session_state.get('current_perf_metrics', {})
+        metrics_md = "\n".join([f"- {name}: {value}" for name, value in final_metrics.items()])
+        full_content = f"# 성능 평가 리포트\n\n## 성능 지표\n{metrics_md}\n\n## 종합 분석\n\n{current_text}"
 
         save_artifact(
             project_id=selected_id,
@@ -120,14 +136,13 @@ if 'generated_perf_report' in st.session_state:
             content=full_content
         )
         st.success("성능 평가 리포트가 이력으로 저장되었습니다.")
-        # 세션 상태 초기화
         del st.session_state['generated_perf_report']
-        del st.session_state['final_metrics_for_report']
+        del st.session_state['current_perf_metrics']
         st.rerun()
 
-# --- 4. 저장된 이력 ---
+# --- 5. 저장된 이력 ---
 st.markdown("---")
-st.subheader("📜 저장된 성능 평가 리포트 이력")
+st.header("📜 저장된 성능 평가 리포트 이력")
 artifacts = get_artifacts_for_project(selected_id, "PERF_REPORT")
 if artifacts:
     for i, artifact in enumerate(artifacts):
