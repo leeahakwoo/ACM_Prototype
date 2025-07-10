@@ -1,6 +1,25 @@
-# your_mcp_project/requirements.txt
+# requirements.txt - 필수 패키지 목록
 
-streamlit
-pandas
-matplotlib
-google-generativeai
+# 기본 패키지
+streamlit>=1.28.0
+pandas>=1.5.0
+sqlite3
+
+# AI 관련 패키지
+google-generativeai>=0.3.0
+
+# 기타 유틸리티
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# 디버깅 및 로깅
+loguru>=0.7.0
+
+# 데이터 처리
+numpy>=1.24.0
+
+# 보안 관련
+cryptography>=41.0.0
+
+# 환경 변수 관리 (로컬 개발용)
+python-dotenv>=1.0.0
