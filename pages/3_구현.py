@@ -1,16 +1,16 @@
-# pages/3_구현.py (콘텐츠 발전 모듈 적용 버전)
+# pages/3_구현.py (NameError 해결 버전)
 
 import streamlit as st
 from datetime import datetime
 import sys
 import os
 import io
+import re  # <--- 이 라인을 추가했습니다.
 
 # --- 경로 설정 ---
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from persistence import save_artifact, get_artifacts_for_project
-# gemini_agent에서 필요한 모든 함수를 import
 from gemini_agent import generate_test_cases, convert_markdown_to_df, refine_content
 import pandas as pd
 
@@ -50,14 +50,12 @@ if st.button("🤖 AI로 테스트 케이스 생성하기", type="primary", use_
 if 'generated_test_cases_df' in st.session_state and not st.session_state['generated_test_cases_df'].empty:
     st.subheader("Step 2: 생성된 테스트 케이스 발전시키기")
     
-    # st.data_editor를 사용하여 사용자가 직접 테이블을 수정할 수 있게 함
     edited_df = st.data_editor(
         st.session_state['generated_test_cases_df'],
-        num_rows="dynamic", # 행 추가/삭제 가능
+        num_rows="dynamic",
         use_container_width=True,
         key="test_case_editor"
     )
-    # 수정된 내용을 session_state에 다시 반영
     st.session_state['generated_test_cases_df'] = edited_df
 
     st.markdown("---")
@@ -65,7 +63,6 @@ if 'generated_test_cases_df' in st.session_state and not st.session_state['gener
     
     current_md_table = edited_df.to_markdown(index=False)
     
-    # 직접 지시하기 기능
     custom_instruction = st.text_input("직접 편집 지시하기 (예: TC-001과 유사한 테스트 케이스 2개 더 추가해줘)")
     if st.button("실행", disabled=not custom_instruction, key="custom_tc"):
         with st.spinner("AI가 당신의 지시를 수행하고 있습니다..."):
@@ -79,10 +76,8 @@ if 'generated_test_cases_df' in st.session_state and not st.session_state['gener
             [원본 테스트 케이스 목록]
             {current_md_table}
             """
-            # refine_content는 범용적이므로 그대로 사용
-            refined_md = refine_content("", instruction) 
+            refined_md = refine_content("", instruction)
             
-            # AI의 응답에서 마크다운 테이블 부분만 추출 (정규식 사용)
             table_match = re.search(r'\|.*\|(?:\n\|.*\|)+', refined_md)
             if table_match:
                 refined_md_table = table_match.group(0)
@@ -115,9 +110,7 @@ if 'generated_test_cases_df' in st.session_state and not st.session_state['gener
         csv = st.session_state['generated_test_cases_df'].to_csv(index=False).encode('utf-8-sig')
         st.download_button("📄 CSV 파일로 다운로드", csv, f"test_cases.csv", "text/csv", use_container_width=True)
 
-
 # --- 4. 저장된 이력 ---
-# (이전 코드와 동일)
 st.markdown("---")
 st.header("📜 저장된 테스트 케이스 이력")
 artifacts = get_artifacts_for_project(selected_id, "TEST_CASE")
