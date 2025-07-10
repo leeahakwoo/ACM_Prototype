@@ -161,3 +161,51 @@ def convert_markdown_to_df(markdown_table: str) -> pd.DataFrame:
     except Exception as e:
         print(f"DataFrame 변환 오류: {e}")
         return pd.DataFrame()
+
+# gemini_agent.py 에 추가할 내용
+
+def generate_performance_report(design_doc: str, metrics: dict) -> str:
+    """
+    모델 설계서와 성능 지표를 바탕으로 성능 평가 리포트를 생성합니다.
+    (설계안의 'D. 성능 평가 리포트 생성 Prompt' 구현)
+    """
+    if not GEMINI_ENABLED:
+        return "오류: Gemini API 키가 설정되지 않았습니다."
+    
+    # metrics 딕셔너리를 문자열로 변환
+    metrics_str = "\n".join([f"- {key}: {value}" for key, value in metrics.items()])
+
+    prompt = f"""
+    당신은 데이터 과학자이자 성능 분석 전문가입니다.
+    아래 주어진 '모델 설계서'의 내용과 실제 '성능 평가 결과'를 종합하여, 상세하고 전문적인 '성능 평가 리포트'를 마크다운 형식으로 작성해주세요.
+
+    ---
+    **[모델 설계서 요약]**
+    {design_doc}
+    ---
+    **[성능 평가 결과]**
+    {metrics_str}
+    ---
+
+    **요구 형식 (반드시 이 순서와 형식으로 작성):**
+
+    ### 1. 총평 (Executive Summary)
+    (모델의 전반적인 성능을 요약하고, 설계 단계에서 목표했던 성능 수준을 달성했는지 평가)
+
+    ### 2. 주요 성능 지표 분석
+    (각 성능 지표(예: Precision, Recall)의 수치가 비즈니스 관점에서 구체적으로 무엇을 의미하는지 해석. 모델의 강점과 약점을 명확히 기술)
+
+    ### 3. 개선이 필요한 지점 및 제언
+    (성능 분석 결과를 바탕으로 모델의 성능을 향상시키기 위한 구체적인 액션 아이템 제안. 예: 데이터 추가 수집, 특정 하이퍼파라미터 튜닝, 다른 알고리즘 시도 등)
+    
+    ### 4. 사용 시 유의사항
+    (이 모델을 실제 운영 환경에 배포할 때 발생할 수 있는 잠재적 리스크나 반드시 모니터링해야 할 사항을 제시)
+    """
+    
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        st.error(f"LLM 호출 중 오류 발생: {e}")
+        return f"오류 발생: {e}"
