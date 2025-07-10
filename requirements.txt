@@ -6,6 +6,7 @@
 streamlit
 pandas
 numpy
+tabulate  # <--- 이 라인을 추가했습니다. (Pandas의 to_markdown 기능에 필요)
 
 # -------------------------------------------------
 # 시각화 (차트 생성에 필요)
