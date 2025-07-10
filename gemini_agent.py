@@ -209,3 +209,49 @@ def generate_performance_report(design_doc: str, metrics: dict) -> str:
     except Exception as e:
         st.error(f"LLM 호출 중 오류 발생: {e}")
         return f"오류 발생: {e}"
+
+# gemini_agent.py 에 추가할 내용
+
+def generate_trustworthy_report(problem_def: str, fairness_input: str, explainability_input: str, robustness_input: str) -> str:
+    """
+    Trustworthy AI 검증 항목들을 바탕으로 종합 리스크 분석 리포트를 생성합니다.
+    (설계안의 거버넌스 검토 항목 구현)
+    """
+    if not GEMINI_ENABLED:
+        return "오류: Gemini API 키가 설정되지 않았습니다."
+
+    prompt = f"""
+    당신은 AI 거버넌스 및 윤리 리스크 전문 컨설턴트입니다.
+    아래 주어진 '프로젝트 개요'와 '신뢰성 검증 결과'를 종합하여, 이 AI 모델의 잠재적 리스크와 규정 준수 관련 사항을 분석하는 'Trustworthy AI 검증 리포트'를 마크다운 형식으로 작성해주세요.
+
+    ---
+    **[프로젝트 개요]**
+    {problem_def}
+    ---
+    **[신뢰성 검증 결과]**
+    - **공정성 (Fairness):** {fairness_input}
+    - **설명가능성 (Explainability, XAI):** {explainability_input}
+    - **강건성 (Robustness):** {robustness_input}
+    ---
+
+    **요구 형식 (반드시 이 순서와 형식으로 작성):**
+
+    ### 1. 종합 평가 (Overall Assessment)
+    (입력된 검증 결과를 바탕으로 모델의 전반적인 신뢰성 수준을 평가. 고위험 AI 분류 가능성이 있는지 여부를 포함)
+
+    ### 2. 항목별 상세 분석 및 잠재적 리스크
+    - **공정성 리스크:** 현재 검증 결과가 불충분할 경우 발생할 수 있는 사회적, 법적 리스크를 분석.
+    - **설명가능성 리스크:** 모델의 결정 과정을 설명할 수 없을 때 발생할 수 있는 문제점(예: 사용자 불신, 디버깅의 어려움)을 지적.
+    - **강건성 리스크:** 예상치 못한 입력이나 데이터 변화에 모델이 어떻게 오작동할 수 있는지 구체적인 시나리오를 제시.
+
+    ### 3. 규정 준수 및 완화 조치 제언
+    (EU AI Act, ISO 42001 등 주요 AI 규제 프레임워크 관점에서 추가적으로 필요한 검증 항목이나 문서화가 필요한 사항을 제안하고, 발견된 리스크를 완화하기 위한 구체적인 기술적/정책적 조치를 권고)
+    """
+    
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        st.error(f"LLM 호출 중 오류 발생: {e}")
+        return f"오류 발생: {e}"
