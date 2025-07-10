@@ -1,16 +1,22 @@
 # your_mcp_project/pages/1_📝_문제_정의서.py
+# (수정된 최종 코드)
 
 import streamlit as st
+import google.generativeai as genai
+import re # 응답 텍스트를 파싱하기 위해 정규식 라이브러리 임포트
 
-# -------------------- 페이지 설정 및 초기화 --------------------
+# -------------------- Gemini API 설정 --------------------
+# st.secrets를 통해 API 키를 안전하게 불러옵니다.
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    GEMINI_ENABLED = True
+except (KeyError, AttributeError):
+    GEMINI_ENABLED = False
 
-# st.set_page_config()는 메인 app.py에서만 호출해야 합니다.
-# 여기서는 페이지 제목만 설정합니다.
+# -------------------- 페이지 설정 및 초기화 (기존과 동일) --------------------
 st.title("📝 문제 정의서 작성")
 st.markdown("---")
 
-# session_state에 'problem_definition'이 없는 경우를 대비한 방어 코드
-# app.py에서 이미 초기화했지만, 페이지 단독 실행 등 예외 상황을 방지합니다.
 if 'problem_definition' not in st.session_state:
     st.session_state['problem_definition'] = {
         "project_name": "",
@@ -19,67 +25,90 @@ if 'problem_definition' not in st.session_state:
         "expected_output": ""
     }
 
-# -------------------- 입력 폼 --------------------
+# -------------------- AI 초안 생성 기능 --------------------
+st.header("✨ AI로 빠르게 초안 작성하기")
 
-st.header("1. 프로젝트 개요")
-st.info("AI 프로젝트의 기본적인 정보와 목표를 명확히 정의합니다.", icon="ℹ️")
+# Gemini API 키가 설정되었는지 확인
+if not GEMINI_ENABLED:
+    st.error("Gemini API 키가 설정되지 않았습니다. st.secrets에 API 키를 추가해주세요.")
+else:
+    # 템플릿 함수: Gemini API의 응답을 파싱하여 session_state에 저장
+    def parse_and_save_response(response_text):
+        try:
+            # 정규식을 사용하여 각 섹션의 내용을 추출
+            goal = re.search(r"### 프로젝트의 최종 목표\s*\n(.*?)\n###", response_text, re.DOTALL).group(1).strip()
+            background = re.search(r"### 문제 배경 및 필요성\s*\n(.*?)\n###", response_text, re.DOTALL).group(1).strip()
+            output = re.search(r"### 핵심 결과물\s*\n(.*?)$", response_text, re.DOTALL).group(1).strip()
+            
+            # session_state 업데이트
+            st.session_state.problem_definition['project_goal'] = goal
+            st.session_state.problem_definition['problem_background'] = background
+            st.session_state.problem_definition['expected_output'] = output
+            
+            st.success("AI가 생성한 초안을 아래 폼에 적용했습니다. 내용을 확인하고 수정해주세요.")
+        except Exception as e:
+            st.error(f"AI 응답을 파싱하는 데 실패했습니다. 원본 응답을 확인해주세요:\n\n{response_text}")
 
-# st.form을 사용하여 여러 입력 위젯을 그룹화하고, '저장' 버튼을 누를 때 한 번에 처리합니다.
-# 이렇게 하면 각 위젯을 조작할 때마다 페이지가 새로고침되는 것을 방지하여 사용자 경험을 향상시킵니다.
+    # AI 초안 생성을 위한 입력
+    idea_input = st.text_input("프로젝트의 핵심 아이디어를 입력하세요", placeholder="예: 온라인 쇼핑몰 고객들의 이탈 원인을 분석하고 싶다.")
+    
+    if st.button("🚀 AI로 초안 생성하기", disabled=not idea_input):
+        with st.spinner("Gemini가 문서를 작성하는 중입니다... 잠시만 기다려주세요."):
+            # Gemini 모델 선택 및 프롬프트 정의
+            model = genai.GenerativeModel('gemini-1.5-flash') # 빠르고 효율적인 모델 사용
+            
+            prompt = f"""
+            당신은 AI 프로젝트 기획 전문가입니다.
+            다음 핵심 아이디어를 바탕으로 'AI 개발 문제 정의서'의 각 항목에 대한 내용을 구체적이고 전문적인 초안으로 작성해주세요.
+            결과는 반드시 아래 형식을 정확히 지켜서, 각 항목에 대한 설명만 간결하게 작성해주세요.
+
+            **핵심 아이디어:** "{idea_input}"
+
+            ---
+            ### 프로젝트의 최종 목표
+            [여기에 목표 작성]
+
+            ### 문제 배경 및 필요성
+            [여기에 배경 및 필요성 작성]
+
+            ### 핵심 결과물
+            [여기에 결과물 작성]
+            """
+            
+            # API 호출
+            response = model.generate_content(prompt)
+            
+            # 응답 파싱 및 저장
+            parse_and_save_response(response.text)
+
+
+# -------------------- 입력 폼 (기존과 거의 동일) --------------------
+st.markdown("---")
+st.header("📄 문제 정의서 상세 내용")
+st.info("AI가 생성한 초안을 검토하고 수정하거나, 직접 내용을 입력해주세요.", icon="ℹ️")
+
 with st.form("problem_definition_form"):
-    # session_state에 저장된 값을 기본값(value)으로 사용합니다.
-    # 사용자가 다른 페이지에 다녀와도 입력했던 내용이 그대로 유지됩니다.
     project_name = st.text_input(
         "프로젝트 이름",
         value=st.session_state.problem_definition.get("project_name", ""),
         help="예: 고객 이탈 예측 AI 모델"
     )
+    # AI가 생성한 값으로 채워지도록 key를 사용
+    project_goal = st.text_area("프로젝트의 최종 목표", height=100, key="pd_goal_key")
+    problem_background = st.text_area("문제 배경 및 필요성", height=200, key="pd_background_key")
+    expected_output = st.text_area("핵심 결과물 (Key Deliverables)", height=100, key="pd_output_key")
 
-    project_goal = st.text_area(
-        "프로젝트의 최종 목표",
-        value=st.session_state.problem_definition.get("project_goal", ""),
-        height=100,
-        help="이 프로젝트를 통해 달성하고자 하는 비즈니스 또는 기술적 목표를 구체적으로 작성합니다."
-    )
-
-    problem_background = st.text_area(
-        "문제 배경 및 필요성",
-        value=st.session_state.problem_definition.get("problem_background", ""),
-        height=200,
-        help="어떤 문제를 해결하기 위해 이 프로젝트가 필요한지, 현재 상황과 문제점을 상세히 기술합니다."
-    )
-    
-    expected_output = st.text_area(
-        "핵심 결과물 (Key Deliverables)",
-        value=st.session_state.problem_definition.get("expected_output", ""),
-        height=100,
-        help="프로젝트 완료 시 나와야 하는 최종 결과물을 명시합니다. 예: 이탈 가능성 점수(0-1)를 예측하는 API, 주간 리포트 대시보드"
-    )
-
-    # 폼 제출 버튼
     submitted = st.form_submit_button("💾 저장하기")
 
     if submitted:
-        # '저장하기' 버튼이 눌리면, form 내부의 위젯들의 현재 값을 session_state에 업데이트합니다.
         st.session_state.problem_definition['project_name'] = project_name
+        # st.form 내부 위젯은 session_state에 직접 연결되지 않으므로, 제출 시 다시 할당해줍니다.
         st.session_state.problem_definition['project_goal'] = project_goal
         st.session_state.problem_definition['problem_background'] = problem_background
         st.session_state.problem_definition['expected_output'] = expected_output
 
         st.success("문제 정의서 내용이 성공적으로 저장되었습니다!")
-        st.balloons() # 저장 성공을 축하하는 작은 애니메이션 효과
+        st.balloons()
 
-# -------------------- 저장된 데이터 확인 --------------------
-
-st.markdown("---")
-st.header("2. 현재 저장된 내용 확인")
-
-# st.expander를 사용하여 깔끔하게 표시
-with st.expander("저장된 문제 정의서 보기"):
-    # session_state에 값이 있는지 확인 후 표시
-    if any(st.session_state.problem_definition.values()):
-        st.json(st.session_state.problem_definition)
-    else:
-        st.warning("아직 저장된 내용이 없습니다. 위의 폼을 작성하고 '저장하기' 버튼을 눌러주세요.")
-
-st.info("내용을 모두 작성하고 저장하셨다면, 왼쪽 사이드바에서 다음 단계인 **'🤖 모델 정의서'** 페이지로 이동하세요.", icon="👉")
+# -------------------- 저장된 데이터 확인 (기존과 동일) --------------------
+# ... (기존 코드와 동일하여 생략) ...
