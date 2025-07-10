@@ -1,3 +1,6 @@
+# your_mcp_project/requirements.txt
+
 streamlit
 pandas
 matplotlib
+google-generativeai
