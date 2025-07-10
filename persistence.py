@@ -1,4 +1,4 @@
-# persistence.py (상태 관리 및 트랜잭션 강화 버전)
+# persistence.py (캐시 제거, 직접 연결 방식으로 복귀)
 
 import sqlite3
 from datetime import datetime
@@ -7,24 +7,16 @@ import streamlit as st
 
 DB_PATH = "database/mcp_database.db"
 
-@st.cache_resource
-def get_db_connection():
-    """
-    Streamlit의 캐시를 사용하여 DB 연결을 한 번만 생성하고 재사용합니다.
-    """
+def init_db():
+    """DB 파일과 테이블을 초기화합니다."""
     db_dir = os.path.dirname(DB_PATH)
     if not os.path.exists(db_dir):
         os.makedirs(db_dir)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    # 외부 키 제약 조건 활성화
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
-
-def init_db():
-    """DB 테이블을 초기화합니다."""
-    conn = get_db_connection()
+    
+    # 연결을 생성하고 바로 닫아 파일 및 테이블 구조만 확인
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON;")
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,24 +37,41 @@ def init_db():
     )
     """)
     conn.commit()
+    conn.close()
 
-# (이하 모든 함수는 get_db_connection()을 사용하도록 변경)
 
-def execute_query(query, params=(), commit=False):
-    """DB 쿼리 실행을 위한 래퍼 함수 (에러 핸들링 포함)"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+def execute_query(query, params=(), commit=False, fetch_one=False):
+    """
+    DB 쿼리 실행을 위한 중앙 함수.
+    매번 새로운 연결을 생성하여 상태 충돌을 방지합니다.
+    """
     try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON;")
         cursor.execute(query, params)
+        
         if commit:
             conn.commit()
-            return cursor.lastrowid
+            last_id = cursor.lastrowid
+            conn.close()
+            return last_id
         else:
-            return [dict(row) for row in cursor.fetchall()]
+            if fetch_one:
+                result = cursor.fetchone()
+                data = dict(result) if result else None
+            else:
+                results = cursor.fetchall()
+                data = [dict(row) for row in results]
+            conn.close()
+            return data
+            
     except sqlite3.Error as e:
         st.error(f"데이터베이스 오류: {e}")
-        return None if commit else []
-    
+        return None if commit or fetch_one else []
+
+
 def get_all_projects():
     return execute_query("SELECT * FROM projects ORDER BY created_at DESC")
 
@@ -74,17 +83,17 @@ def create_project(name, description):
 def update_project(project_id, name, description):
     query = "UPDATE projects SET name = ?, description = ? WHERE id = ?"
     params = (name, description, project_id)
-    return execute_query(query, params, commit=True)
+    execute_query(query, params, commit=True)
 
 def delete_project(project_id):
     query = "DELETE FROM projects WHERE id = ?"
     params = (project_id,)
-    return execute_query(query, params, commit=True)
+    execute_query(query, params, commit=True)
 
 def save_artifact(project_id, stage, type, content):
     query = "INSERT INTO artifacts (project_id, stage, type, content, created_at) VALUES (?, ?, ?, ?, ?)"
     params = (project_id, stage, type, content, datetime.now().isoformat())
-    return execute_query(query, params, commit=True)
+    execute_query(query, params, commit=True)
 
 def get_artifacts_for_project(project_id, type):
     query = "SELECT * FROM artifacts WHERE project_id = ? AND type = ? ORDER BY created_at DESC"
