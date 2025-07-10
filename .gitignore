@@ -66,3 +66,8 @@ venv.bak/
 
 # OS-specific
 .DS_Store
+
+# your_mcp_project/.gitignore 파일의 맨 아래에 추가
+
+# Streamlit secrets file
+.streamlit/secrets.toml
