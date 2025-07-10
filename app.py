@@ -1,4 +1,13 @@
-# app.py (고도화 버전)
+# app.py (고도화 버전, 경로 수정 완료)
+
+# --- 경로 설정 (다른 import보다 먼저) ---
+import sys
+import os
+# 현재 파일(app.py)이 있는 폴더의 절대 경로를 시스템 경로에 추가
+# 이 경우, app.py는 프로젝트 루트에 있으므로 루트 폴더가 추가됨
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# ------------------------------------
+
 import streamlit as st
 from core.persistence import init_db, get_all_projects, create_project
 import pandas as pd
@@ -23,8 +32,10 @@ if st.sidebar.button("생성하기", type="primary"):
 st.header("프로젝트 목록")
 projects = get_all_projects()
 if projects:
-    df = pd.DataFrame(projects, columns=["ID", "이름", "설명", "생성일"])
-    st.dataframe(df, use_container_width=True)
+    # DataFrame으로 변환하여 더 깔끔하게 표시
+    df = pd.DataFrame(projects)
+    df = df.rename(columns={'id': 'ID', 'name': '이름', 'description': '설명', 'created_at': '생성일'})
+    st.dataframe(df, use_container_width=True, hide_index=True)
     st.info("작업할 프로젝트를 선택하고 왼쪽 사이드바에서 개발 단계로 이동하세요. (향후 프로젝트 선택 기능 추가 예정)")
 else:
     st.info("아직 생성된 프로젝트가 없습니다. 왼쪽 사이드바에서 새 프로젝트를 생성해주세요.")
