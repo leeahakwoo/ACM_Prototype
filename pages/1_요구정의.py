@@ -46,14 +46,72 @@ if st.button("🤖 AI로 문제정의서 생성하기", type="primary", use_cont
         generated_text = generate_problem_definition(prompt_input)
         st.session_state['generated_problem_def'] = generated_text
 
-# --- 3. 생성 결과 확인 및 저장 ---
+# --- 3. 생성 결과 확인, 발전 및 저장 ---
 if 'generated_problem_def' in st.session_state and st.session_state['generated_problem_def']:
     st.subheader("📝 생성된 문제정의서 초안")
-    final_text = st.text_area("내용을 검토하고 수정하세요.", value=st.session_state.generated_problem_def, height=300)
-    if st.button("💾 데이터베이스에 저장하기", use_container_width=True):
-        save_artifact(project_id=selected_id, stage="REQUIREMENT", type="PROBLEM_DEF", content=final_text)
+    
+    # st.text_area에 key를 부여하여 현재 값을 쉽게 참조하고 업데이트할 수 있도록 함
+    st.session_state['generated_problem_def'] = st.text_area(
+        "내용을 검토하고 수정하세요.", 
+        value=st.session_state.generated_problem_def, 
+        height=300,
+        key="problem_def_editor"
+    )
+
+    st.markdown("---")
+    st.subheader("🤖 AI 편집 도구모음")
+    st.info("아래 버튼과 입력창을 통해 AI와 함께 문서의 완성도를 높여보세요.")
+
+    # 버튼들을 가로로 배치
+    col1, col2, col3 = st.columns(3)
+    current_text = st.session_state.problem_def_editor # 현재 편집 중인 텍스트
+    
+    with col1:
+        if st.button("✨ 전문가처럼 다듬기", use_container_width=True):
+            with st.spinner("AI가 문체를 다듬고 있습니다..."):
+                instruction = "이 내용을 더 논리적이고 전문적인 보고서 형식으로 다듬어줘."
+                refined_text = refine_content(current_text, instruction)
+                st.session_state.generated_problem_def = refined_text
+                st.rerun()
+
+    with col2:
+        if st.button("🤏 간결하게 요약하기", use_container_width=True):
+            with st.spinner("AI가 내용을 요약하고 있습니다..."):
+                instruction = "이 내용의 핵심만 남기고 3~4문장으로 간결하게 요약해줘."
+                refined_text = refine_content(current_text, instruction)
+                st.session_state.generated_problem_def = refined_text
+                st.rerun()
+
+    with col3:
+        if st.button("🔍 상세하게 확장하기", use_container_width=True):
+            with st.spinner("AI가 내용을 상세화하고 있습니다..."):
+                instruction = "이 내용의 각 항목에 대해, 더 구체적인 예시나 설명을 덧붙여서 내용을 풍부하게 만들어줘."
+                refined_text = refine_content(current_text, instruction)
+                st.session_state.generated_problem_def = refined_text
+                st.rerun()
+
+    # 직접 지시하기 기능
+    custom_instruction = st.text_input("직접 편집 지시하기 (예: 이 내용을 격식있는 메일 형식으로 바꿔줘)")
+    if st.button("실행", disabled=not custom_instruction):
+        with st.spinner("AI가 당신의 지시를 수행하고 있습니다..."):
+            refined_text = refine_content(current_text, custom_instruction)
+            st.session_state.generated_problem_def = refined_text
+            st.rerun()
+
+    st.markdown("---")
+    # 최종 저장 버튼
+    if st.button("💾 이 최종본을 데이터베이스에 저장하기", type="primary", use_container_width=True):
+        save_artifact(
+            project_id=selected_id,
+            stage="REQUIREMENT",
+            type="PROBLEM_DEF",
+            content=current_text # 최종적으로 편집된 내용을 저장
+        )
         st.success(f"'{project_name}' 프로젝트의 문제정의서가 성공적으로 저장되었습니다.")
+        # 관련 세션 상태 초기화
         del st.session_state['generated_problem_def']
+        if 'problem_def_editor' in st.session_state:
+            del st.session_state['problem_def_editor']
         st.rerun()
 
 # --- 4. 저장된 문서 이력 ---
