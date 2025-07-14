@@ -10,28 +10,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from persistence import init_db, get_all_projects, create_project, delete_project, update_project
 
 # --- 페이지 기본 설정 ---
-st.set_page_config(
-    page_title="대시보드 - AI 관리 지원 도구", 
-    page_icon="🚀", 
-    layout="wide"
-)
-
-# 사이드바 메뉴명 변경을 위한 CSS
-st.markdown("""
-<style>
-    .css-1d391kg .stSelectbox label {
-        display: none;
-    }
-    /* 사이드바 메뉴에서 "app" 텍스트를 "대시보드"로 변경 */
-    .css-1d391kg .css-1cpxqw2 {
-        display: none;
-    }
-    /* 또는 다른 방법으로 메뉴 이름 변경 */
-    .css-1d391kg .css-1cpxqw2::before {
-        content: "대시보드";
-    }
-</style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="대시보드 - AI 관리 지원 도구", page_icon="🚀", layout="wide")
 
 # --- 앱 초기화 ---
 init_db()
