@@ -1,4 +1,4 @@
-# app.py (최종 안정화 버전)
+# app.py (삭제 후 상태 초기화 기능 추가)
 
 import streamlit as st
 from datetime import datetime
@@ -9,7 +9,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from persistence import init_db, get_all_projects, create_project, delete_project, update_project
 
-# --- 페이지 기본 설정 (앱 전체에서 단 한 번만 호출) ---
+# --- 페이지 기본 설정 ---
 st.set_page_config(
     page_title="대시보드 - AI 관리 지원 도구",
     page_icon="🚀",
@@ -72,6 +72,9 @@ projects = get_all_projects()
 
 if not projects:
     st.info("생성된 프로젝트가 없습니다. 왼쪽 사이드바에서 새 프로젝트를 생성해주세요.")
+    # 모든 프로젝트가 삭제되었을 때 선택 상태도 초기화
+    st.session_state.selected_project_id = None
+    st.session_state.selected_project_name = None
 else:
     project_options = {p['id']: f"{p['name']} (ID: {p['id']})" for p in projects}
     if st.session_state.selected_project_id not in project_options:
@@ -81,7 +84,7 @@ else:
         "작업할 프로젝트 선택:",
         options=list(project_options.keys()),
         format_func=lambda x: project_options.get(x),
-        index=list(project_options.keys()).index(st.session_state.selected_project_id),
+        index=list(project_options.keys()).index(st.session_state.selected_project_id) if st.session_state.selected_project_id in project_options else 0,
         horizontal=True,
         key="project_selector_radio"
     )
@@ -115,6 +118,10 @@ else:
                 st.session_state.editing_project_id = proj['id']
                 st.rerun()
             if manage_cols[1].button("삭제", key=f"delete_{proj['id']}", type="secondary"):
-                delete_project(proj['id'])
+                project_id_to_delete = proj['id']
+                delete_project(project_id_to_delete)
                 st.toast(f"프로젝트 '{proj['name']}'가 삭제되었습니다.")
+                # --- 핵심 수정 부분: 삭제 후 상태 초기화 ---
+                if st.session_state.editing_project_id == project_id_to_delete:
+                    st.session_state.editing_project_id = None
                 st.rerun()
