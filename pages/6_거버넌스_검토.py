@@ -1,81 +1,104 @@
-# pages/6_거버넌스_검토.py (자동 검증 기능 추가)
+# pages/6_거버넌스_검증.py (데이터 집계 및 자동 점검 1단계)
 
 import streamlit as st
-import re
 import yaml
-# ... (기타 import)
+import re
+import sys
+import os
 
+# --- 경로 설정 및 모듈 import ---
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from persistence import get_latest_artifact
+# (향후 AI 리포트 생성을 위해 gemini_agent도 추가 예정)
+# from gemini_agent import ...
+
+# --- 페이지 설정 ---
+st.set_page_config(page_title="거버넌스 검증", layout="wide")
 st.title("🛡️ 거버넌스 검증 (자동화)")
 st.markdown("---")
 
-# --- 1. 데이터 수집 및 컨텍스트 추출 ---
+# --- 1. 프로젝트 선택 확인 ---
 selected_id = st.session_state.get('selected_project_id')
 if not selected_id:
-    # ... 프로젝트 선택 유도 ...
+    st.error("프로젝트를 선택해주세요. 메인 대시보드(app)로 돌아가 작업할 프로젝트를 먼저 선택해주세요.")
     st.stop()
-
 st.header(f"프로젝트: {st.session_state.get('selected_project_name', 'N/A')}")
 
-with st.spinner("프로젝트의 모든 산출물을 불러와 분석 중입니다..."):
-    # DB에서 모든 종류의 최신 산출물을 가져오는 함수 (persistence.py에 구현 필요)
-    # get_latest_artifacts_for_project(selected_id)
-    artifacts = {
-        "MCP_YAML": get_artifacts_for_project(selected_id, "MCP_YAML"),
-        "PROBLEM_DEF": get_artifacts_for_project(selected_id, "PROBLEM_DEF"),
-        "MODEL_DESIGN": get_artifacts_for_project(selected_id, "MODEL_DESIGN"),
-        "PERF_REPORT": get_artifacts_for_project(selected_id, "PERF_REPORT"),
-    }
+# --- 2. 데이터 집계 및 컨텍스트 추출 ---
+st.subheader("Step 1: 프로젝트 데이터 자동 집계")
+
+# 각 산출물의 최신 버전을 불러옵니다.
+with st.spinner("프로젝트의 모든 산출물 데이터를 불러오는 중입니다..."):
+    mcp_artifact = get_latest_artifact(selected_id, "MCP_YAML")
+    problem_def_artifact = get_latest_artifact(selected_id, "PROBLEM_DEF")
+    design_doc_artifact = get_latest_artifact(selected_id, "MODEL_DESIGN")
+    perf_report_artifact = get_latest_artifact(selected_id, "PERF_REPORT")
+
+# 각 산출물의 존재 여부 확인 및 컨텍스트 추출
+data_summary = {}
+mcp_data = {}
+if mcp_artifact:
+    data_summary["MCP 컨텍스트"] = f"✅ (버전: {mcp_artifact['created_at']})"
+    try:
+        mcp_data = yaml.safe_load(mcp_artifact['content']).get('mcp_context', {})
+    except (yaml.YAMLError, AttributeError):
+        st.error("MCP YAML 파일 파싱에 실패했습니다.")
+else:
+    data_summary["MCP 컨텍스트"] = "❌ 없음"
+
+if problem_def_artifact:
+    data_summary["문제정의서"] = f"✅ (버전: {problem_def_artifact['created_at']})"
+else:
+    data_summary["문제정의서"] = "❌ 없음"
+
+if design_doc_artifact:
+    data_summary["모델 설계서"] = f"✅ (버전: {design_doc_artifact['created_at']})"
+else:
+    data_summary["모델 설계서"] = "❌ 없음"
     
-    # 각 산출물에서 정보 추출
-    mcp_data = {}
-    if artifacts["MCP_YAML"]:
-        mcp_data = yaml.safe_load(artifacts["MCP_YAML"][0]['content']).get('mcp_context', {})
-    
-    problem_def_text = artifacts["PROBLEM_DEF"][0]['content'] if artifacts["PROBLEM_DEF"] else ""
-    perf_report_text = artifacts["PERF_REPORT"][0]['content'] if artifacts["PERF_REPORT"] else ""
+if perf_report_artifact:
+    data_summary["성능 검증 리포트"] = f"✅ (버전: {perf_report_artifact['created_at']})"
+else:
+    data_summary["성능 검증 리포트"] = "❌ 없음"
 
-    # 예시: 성능 리포트에서 Accuracy 추출
-    accuracy_match = re.search(r"Accuracy:\s*([0-9.]+)", perf_report_text)
-    accuracy = float(accuracy_match.group(1)) if accuracy_match else None
+# 집계된 데이터 현황 표시
+st.table(data_summary)
 
+# 모든 필수 데이터가 있는지 확인
+if not all([mcp_artifact, problem_def_artifact, design_doc_artifact, perf_report_artifact]):
+    st.error("거버넌스 검증을 수행하기 위해 필요한 모든 산출물이 준비되지 않았습니다. 각 페이지에서 문서를 먼저 작성 및 저장해주세요.")
+    st.stop()
 
-# --- 2. 자동 점검 수행 및 결과 표시 ---
-st.subheader("자동 거버넌스 점검 결과")
+# --- 3. 자동 점검 수행 ---
+st.markdown("---")
+st.subheader("Step 2: 자동 거버넌스 점검 결과")
 
-# Rule-based Checklist
+# 컨텍스트에서 점검에 필요한 값 추출
+risk_level = mcp_data.get("risk_level", "Unknown")
+responsible_party = mcp_data.get("responsible_party", "")
+performance_metrics = mcp_data.get("performance", {})
+accuracy = performance_metrics.get("accuracy", 0.0)
+
+# 규칙 기반 체크리스트
 rules = {
-    "담당자 지정 여부": bool(mcp_data.get("responsible_party")),
-    "고위험 모델 여부": mcp_data.get("risk_level", "").lower() == "high",
-    "성능 목표 달성 여부 (Accuracy > 0.9)": accuracy is not None and accuracy > 0.9,
-    "개인정보 포함 가능성": "개인정보" in problem_def_text
+    "담당자(responsible_party)가 MCP에 명시되었는가?": bool(responsible_party),
+    "성능(Accuracy)이 0.9 이상인가?": accuracy >= 0.9,
+    "고위험(High-Risk) 모델인가?": risk_level.lower() == "high",
 }
 
 passed_count = 0
-failed_count = 0
 for rule_name, is_passed in rules.items():
-    # 조건에 따라 통과/실패/주의 표시
-    if rule_name == "고위험 모델 여부" and is_passed:
-        st.warning(f"🟡 **주의:** {rule_name} (고위험 모델로 분류됨)", icon="⚠️")
+    if "고위험" in rule_name and is_passed:
+        st.warning(f"🟡 **주의:** {rule_name}", icon="⚠️")
     elif is_passed:
         st.success(f"✅ **통과:** {rule_name}", icon="✔️")
         passed_count += 1
     else:
         st.error(f"❌ **미흡:** {rule_name}", icon="❗")
-        failed_count += 1
 
-st.metric("점검 결과", f"{passed_count} / {len(rules)} 충족")
+st.metric("필수 점검 항목 충족률", f"{passed_count} / {len(rules) - 1}") # '고위험' 항목은 평가에서 제외
 
-
-# --- 3. AI 기반 종합 리포트 생성 ---
+# --- 4. AI 기반 종합 리포트 (다음 단계에서 구현) ---
 st.markdown("---")
-st.subheader("AI 종합 리스크 분석 리포트")
-
-# 점검 결과를 텍스트로 변환하여 AI 프롬프트에 전달
-summary_of_checks = "\n".join([f"- {name}: {'충족' if passed else '미흡'}" for name, passed in rules.items()])
-
-if st.button("🤖 점검 결과 기반으로 리포트 생성", type="primary"):
-    with st.spinner("AI가 종합 리스크 분석 및 권고안을 작성합니다..."):
-        # 여기에 점검 결과를 바탕으로 리포트를 생성하는 gemini_agent 함수 호출
-        # 예: generate_governance_summary(summary_of_checks, mcp_data)
-        report_text = ... 
-        st.markdown(report_text)
+st.subheader("Step 3: AI 종합 리스크 분석")
+st.info("다음 단계에서는 이 자동 점검 결과를 바탕으로 AI가 종합적인 리스크 분석 및 권고안을 생성하는 기능을 구현합니다.")
