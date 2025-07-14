@@ -1,4 +1,4 @@
-# app.py (dialog 사용법 최종 수정 버전)
+# app.py (dialog 사용법 수정 버전)
 
 import streamlit as st
 from datetime import datetime
@@ -24,6 +24,29 @@ if 'selected_project_name' not in st.session_state:
     st.session_state.selected_project_name = None
 if 'show_create_dialog' not in st.session_state:
     st.session_state.show_create_dialog = False
+
+# --- 다이얼로그 함수 정의 ---
+@st.dialog("새 프로젝트 생성")
+def create_project_dialog():
+    with st.form("new_project_dialog_form"):
+        name = st.text_input("프로젝트 이름")
+        desc = st.text_area("프로젝트 설명")
+        
+        col_btn1, col_btn2 = st.columns(2)
+        if col_btn1.form_submit_button("생성하기"):
+            if name:
+                if create_project(name, desc):
+                    st.toast("프로젝트가 생성되었습니다.")
+                    st.session_state.show_create_dialog = False
+                    st.rerun()
+                else:
+                    st.error("이미 존재하는 프로젝트 이름입니다.")
+            else:
+                st.error("프로젝트 이름을 입력해주세요.")
+        
+        if col_btn2.form_submit_button("취소", type="secondary"):
+            st.session_state.show_create_dialog = False
+            st.rerun()
 
 # --- UI 그리기 ---
 st.title("🚀 AI 관리 지원 도구")
@@ -51,7 +74,6 @@ with st.sidebar:
     else:
         st.info("프로젝트를 수정하려면 목록에서 '수정' 버튼을 클릭하세요.")
 
-
 # --- 메인 콘텐츠: 프로젝트 목록 및 관리 ---
 col1, col2 = st.columns([3, 1])
 with col1:
@@ -60,32 +82,9 @@ with col2:
     if st.button("✚ 새 프로젝트 생성", type="primary", use_container_width=True):
         st.session_state.show_create_dialog = True
 
-# --- 새 프로젝트 생성 다이얼로그(팝업) ---
-# st.dialog는 with 구문 없이 직접 호출합니다.
+# --- 새 프로젝트 생성 다이얼로그 호출 ---
 if st.session_state.show_create_dialog:
-    # dialog를 변수로 받아, 그 안에서 UI를 구성합니다.
-    dialog = st.experimental_dialog("새 프로젝트 생성")
-    
-    with dialog.form("new_project_dialog_form"):
-        name = st.text_input("프로젝트 이름")
-        desc = st.text_area("프로젝트 설명")
-        
-        col_btn1, col_btn2 = st.columns(2)
-        if col_btn1.form_submit_button("생성하기"):
-            if name:
-                if create_project(name, desc):
-                    st.toast("프로젝트가 생성되었습니다.")
-                    st.session_state.show_create_dialog = False
-                    st.rerun()
-                else:
-                    st.error("이미 존재하는 프로젝트 이름입니다.")
-            else:
-                st.error("프로젝트 이름을 입력해주세요.")
-        
-        if col_btn2.form_submit_button("취소", type="secondary"):
-            st.session_state.show_create_dialog = False
-            st.rerun()
-
+    create_project_dialog()
 
 # --- 선택된 프로젝트 정보 표시 ---
 if st.session_state.selected_project_id:
@@ -99,7 +98,6 @@ projects = get_all_projects()
 if not projects:
     st.info("생성된 프로젝트가 없습니다. '새 프로젝트 생성' 버튼을 클릭하여 시작하세요.")
 else:
-    # (이하 테이블 표시 및 관리 버튼 코드는 이전과 동일)
     header_cols = st.columns([1, 3, 4, 2, 3])
     header_cols[0].write("**ID**")
     header_cols[1].write("**이름**")
