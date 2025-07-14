@@ -1,4 +1,4 @@
-# app.py (팝업 생성 기능 추가 버전)
+# app.py (팝업 생성 및 IndentationError 해결 최종 버전)
 
 import streamlit as st
 from datetime import datetime
@@ -31,7 +31,6 @@ st.header("대시보드")
 st.markdown("---")
 
 # --- 사이드바: 프로젝트 수정 전용 ---
-# 이제 사이드바는 수정 모드일 때만 사용됩니다.
 with st.sidebar:
     if st.session_state.editing_project:
         st.header("📝 프로젝트 수정")
@@ -56,7 +55,6 @@ col1, col2 = st.columns([3, 1])
 with col1:
     st.subheader("프로젝트 목록")
 with col2:
-    # '새 프로젝트 생성' 버튼
     if st.button("✚ 새 프로젝트 생성", type="primary", use_container_width=True):
         st.session_state.show_create_dialog = True
 
@@ -67,7 +65,6 @@ if st.session_state.show_create_dialog:
             name = st.text_input("프로젝트 이름")
             desc = st.text_area("프로젝트 설명")
             
-            # Form 안에 두 개의 버튼을 두어 제출 로직을 분리
             col_btn1, col_btn2 = st.columns(2)
             if col_btn1.form_submit_button("생성하기"):
                 if name:
@@ -85,32 +82,58 @@ if st.session_state.show_create_dialog:
                 st.rerun()
 
 # --- 선택된 프로젝트 정보 표시 ---
-# (이전 코드와 동일)
 if st.session_state.selected_project_id:
     st.info(f"현재 작업 중인 프로젝트: **{st.session_state.selected_project_name}** (ID: {st.session_state.selected_project_id})")
 else:
     st.info("작업할 프로젝트를 아래 목록에서 '선택' 버튼을 눌러 지정해주세요.")
 st.divider()
 
-
 # --- 프로젝트 목록 테이블 ---
 projects = get_all_projects()
 if not projects:
     st.info("생성된 프로젝트가 없습니다. '새 프로젝트 생성' 버튼을 클릭하여 시작하세요.")
 else:
-    # (테이블 표시 및 관리 버튼 코드는 이전과 동일)
+    # 테이블 헤더
     header_cols = st.columns([1, 3, 4, 2, 3])
     header_cols[0].write("**ID**")
-    # ... (이하 동일)
+    header_cols[1].write("**이름**")
+    header_cols[2].write("**설명**")
+    header_cols[3].write("**생성일**")
+    header_cols[4].write("**관리**")
     
+    # 각 프로젝트 행
     for proj in projects:
         row_cols = st.columns([1, 3, 4, 2, 3])
-        # ... (이하 동일)
+        row_cols[0].write(proj['id'])
+        row_cols[1].write(proj['name'])
+        row_cols[2].write(proj['description'])
+        try:
+            dt_object = datetime.fromisoformat(proj['created_at'])
+            row_cols[3].write(dt_object.strftime('%Y-%m-%d %H:%M'))
+        except (ValueError, TypeError):
+            row_cols[3].write(proj['created_at'])
+        
+        # 관리 버튼 컬럼
         with row_cols[4]:
             manage_cols = st.columns(3)
-            if manage_cols[0].button("선택", ...):
-                # ...
-            if manage_cols[1].button("수정", ...):
-                st.session_state.editing_project = proj # 수정은 이제 팝업이 아닌 사이드바에서 처리
+            is_selected = (st.session_state.selected_project_id == proj['id'])
+            
+            # 선택 버튼
+            if manage_cols[0].button("✓ 선택" if is_selected else "선택", key=f"select_{proj['id']}", type="primary" if is_selected else "secondary"):
+                st.session_state.selected_project_id = proj['id']
+                st.session_state.selected_project_name = proj['name']
                 st.rerun()
-            # ...
+
+            # 수정 버튼
+            if manage_cols[1].button("수정", key=f"edit_{proj['id']}"):
+                st.session_state.editing_project = proj
+                st.rerun()
+            
+            # 삭제 버튼
+            if manage_cols[2].button("삭제", key=f"delete_{proj['id']}"):
+                delete_project(proj['id'])
+                st.toast(f"프로젝트 '{proj['name']}'가 삭제되었습니다.")
+                if st.session_state.selected_project_id == proj['id']:
+                    st.session_state.selected_project_id = None
+                    st.session_state.selected_project_name = None
+                st.rerun()
