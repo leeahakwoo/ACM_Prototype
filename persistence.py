@@ -112,3 +112,18 @@ def get_artifacts_for_project(project_id, type):
     artifacts = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return artifacts
+
+def get_latest_artifact(project_id, type):
+    """특정 프로젝트의 특정 타입 산출물 중 가장 최신 버전 하나만 불러옵니다."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT content, created_at FROM artifacts
+    WHERE project_id = ? AND type = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+    """, (project_id, type))
+    artifact = cursor.fetchone()
+    conn.close()
+    return dict(artifact) if artifact else None
