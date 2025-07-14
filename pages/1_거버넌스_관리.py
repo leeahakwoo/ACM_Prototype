@@ -10,6 +10,9 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from persistence import save_artifact, get_artifacts_for_project
 
+# --- 페이지 설정 (각 페이지마다 추가) ---
+st.set_page_config(page_title="MCP 관리", layout="wide")
+
 # --- 페이지 제목 ---
 st.title("Ⓜ️ 거버넌스 관리 (MCP)")
 st.markdown("---")
@@ -22,6 +25,7 @@ if not selected_id:
 
 st.header(f"프로젝트: {st.session_state.get('selected_project_name', 'N/A')}")
 st.info("모델의 주요 메타정보를 YAML 형식으로 작성하여 버전 관리합니다. 이 정보는 '거버넌스 검증' 단계에서 자동으로 사용됩니다.")
+
 
 # --- MCP YAML 생성기 ---
 st.subheader("MCP YAML 생성 및 저장")
