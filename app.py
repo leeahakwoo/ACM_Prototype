@@ -1,4 +1,4 @@
-# app.py (팝업 생성 및 IndentationError 해결 최종 버전)
+# app.py (st.dialog 오류 수정 및 생략 없는 최종 버전)
 
 import streamlit as st
 from datetime import datetime
@@ -30,7 +30,7 @@ st.title("🚀 AI 관리 지원 도구")
 st.header("대시보드")
 st.markdown("---")
 
-# --- 사이드바: 프로젝트 수정 전용 ---
+# --- 사이드바 ---
 with st.sidebar:
     if st.session_state.editing_project:
         st.header("📝 프로젝트 수정")
@@ -60,7 +60,7 @@ with col2:
 
 # --- 새 프로젝트 생성 다이얼로그(팝업) ---
 if st.session_state.show_create_dialog:
-    with st.dialog("새 프로젝트 생성"):
+    with st.experimental_dialog("새 프로젝트 생성"):
         with st.form("new_project_dialog_form"):
             name = st.text_input("프로젝트 이름")
             desc = st.text_area("프로젝트 설명")
@@ -119,7 +119,7 @@ else:
             is_selected = (st.session_state.selected_project_id == proj['id'])
             
             # 선택 버튼
-            if manage_cols[0].button("✓ 선택" if is_selected else "선택", key=f"select_{proj['id']}", type="primary" if is_selected else "secondary"):
+            if manage_cols[0].button("✓" if is_selected else "선택", key=f"select_{proj['id']}", type="primary" if is_selected else "secondary", help="이 프로젝트를 작업 대상으로 선택합니다."):
                 st.session_state.selected_project_id = proj['id']
                 st.session_state.selected_project_name = proj['name']
                 st.rerun()
