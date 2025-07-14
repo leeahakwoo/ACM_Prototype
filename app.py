@@ -1,27 +1,23 @@
-# app.py (st.navigation 제거, 안정 버전)
+# app.py (Back to Basics 최종 버전)
 
 import streamlit as st
 from datetime import datetime
 import sys
 import os
 
-# --- 경로 설정 및 모듈 import ---
+# --- 경로 설정 및 모듈 import (가장 먼저) ---
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from persistence import init_db, get_all_projects, create_project, delete_project, update_project
 
-# --- 앱 초기화 ---
-init_db()
-
-# --- 페이지 기본 설정 ---
+# --- 페이지 기본 설정 (앱 전체에서 단 한 번만 호출) ---
 st.set_page_config(
-    page_title="대시보드 - AI 관리 지원 도구", # 브라우저 탭에 표시될 이름
+    page_title="AI 관리 지원 도구",
     page_icon="🚀",
     layout="wide",
 )
 
-# --- 타이틀 ---
-st.title("🚀 AI 관리 지원 도구")
-st.markdown("---")
+# --- 앱 초기화 ---
+init_db()
 
 # --- session_state 관리 ---
 if 'editing_project_id' not in st.session_state:
@@ -29,9 +25,12 @@ if 'editing_project_id' not in st.session_state:
 if 'selected_project_id' not in st.session_state:
     st.session_state.selected_project_id = None
 
-# --- 사이드바: 프로젝트 생성/수정 ---
-# (이 부분은 이전 답변의 코드를 그대로 사용해도 좋습니다. 
-#  단, dialog 대신 사이드바에 다시 배치하는 것이 더 안정적일 수 있습니다.)
+# --- UI 그리기 ---
+st.title("🚀 AI 관리 지원 도구")
+st.header("대시보드")
+st.markdown("---")
+
+# --- 사이드바 ---
 with st.sidebar:
     # 수정 모드
     if st.session_state.editing_project_id:
@@ -59,11 +58,31 @@ with st.sidebar:
                 if name and create_project(name, desc):
                     st.toast("프로젝트가 생성되었습니다.")
                     st.rerun()
-                # ... (오류 처리)
+                elif not name: st.error("프로젝트 이름을 입력해주세요.")
+                else: st.error("이미 존재하는 프로젝트 이름입니다.")
 
-# --- 메인 화면: 프로젝트 목록 ---
-st.header("프로젝트 목록")
+# --- 메인 콘텐츠: 프로젝트 목록 ---
+st.subheader("프로젝트 목록")
 projects = get_all_projects()
 
-# (이전 답변의 테이블 표시 및 관리 버튼 코드와 동일)
-# ...
+if not projects:
+    st.info("생성된 프로젝트가 없습니다.")
+else:
+    # 프로젝트 선택 UI
+    project_options = {p['id']: f"{p['name']} (ID: {p['id']})" for p in projects}
+    if st.session_state.selected_project_id not in project_options:
+        st.session_state.selected_project_id = list(project_options.keys())[0] if project_options else None
+    
+    st.session_state.selected_project_id = st.radio(
+        "작업할 프로젝트 선택:",
+        options=list(project_options.keys()),
+        format_func=lambda x: project_options.get(x),
+        horizontal=True,
+        key="project_selector_radio"
+    )
+    st.session_state.selected_project_name = project_options.get(st.session_state.selected_project_id)
+    st.divider()
+
+    # 테이블 헤더
+    header_cols = st.columns([1, 3, 4, 2, 2])
+    # ... (이하 테이블 표시 및 관리 버튼 코드는 이전과 동일)
