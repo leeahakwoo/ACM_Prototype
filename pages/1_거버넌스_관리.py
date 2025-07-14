@@ -11,8 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from persistence import save_artifact, get_artifacts_for_project
 
-st.set_page_config(page_title="MCP 관리", layout="wide")
-st.title("Ⓜ️ MCP (Model Context Protocol) 관리")
+st.set_page_config(page_title="거버넌스 관리", layout="wide")
+st.title("Ⓜ️ 거버넌스 관리") # 페이지의 메인 제목
 st.markdown("---")
 
 # --- 프로젝트 선택 확인 ---
