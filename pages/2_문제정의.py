@@ -8,20 +8,19 @@ import os
 # --- 경로 설정 ---
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# --- 핵심 수정: refine_content 함수를 import 라인에 추가 ---
-from persistence import save_artifact, get_artifacts_for_project, get_all_projects
-from gemini_agent import generate_problem_definition, refine_content
+# --- 필요한 모듈 import ---
+from persistence import ...
+from gemini_agent import ...
 
-# --- 페이지 기본 설정 ---
-st.set_page_config(page_title="문제정의", layout="wide")
-st.title("📋 문제정의") # 페이지 제목도 일관성 있게 변경
+# --- 페이지 설정 ---
+st.set_page_config(page_title="모델 설계", layout="wide") # 여기에 해당 페이지 이름
+st.title("🏗️ 모델 설계") # 여기에 해당 페이지 이름과 아이콘
 st.markdown("---")
 
-# --- 1. 선택된 프로젝트 정보 확인 ---
+# --- 프로젝트 선택 확인 ---
 selected_id = st.session_state.get('selected_project_id', None)
-
 if not selected_id:
-    st.error("선택된 프로젝트가 없습니다. 메인 페이지(app)로 돌아가 작업할 프로젝트를 먼저 선택해주세요.")
+    st.error("프로젝트를 선택해주세요. 메인 대시보드(app)로 돌아가 작업할 프로젝트를 먼저 선택해주세요.")
     st.stop()
 
 projects = get_all_projects()
