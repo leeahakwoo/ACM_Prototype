@@ -1,4 +1,4 @@
-# pages/1_거버넌스_관리.py (안정 버전)
+# pages/1_MCP_관리.py
 
 import streamlit as st
 import yaml
@@ -10,8 +10,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from persistence import save_artifact, get_artifacts_for_project
 
-# --- 페이지 설정 ---
-st.set_page_config(page_title="거버넌스 관리", layout="wide")
+# --- 페이지 제목 ---
 st.title("Ⓜ️ 거버넌스 관리 (MCP)")
 st.markdown("---")
 
