@@ -1,4 +1,4 @@
-# app.py (Back to Basics 최종 버전)
+# app.py (최종 안정화 버전)
 
 import streamlit as st
 from datetime import datetime
@@ -11,7 +11,7 @@ from persistence import init_db, get_all_projects, create_project, delete_projec
 
 # --- 페이지 기본 설정 (앱 전체에서 단 한 번만 호출) ---
 st.set_page_config(
-    page_title="AI 관리 지원 도구",
+    page_title="대시보드 - AI 관리 지원 도구",
     page_icon="🚀",
     layout="wide",
 )
@@ -73,9 +73,7 @@ projects = get_all_projects()
 if not projects:
     st.info("생성된 프로젝트가 없습니다. 왼쪽 사이드바에서 새 프로젝트를 생성해주세요.")
 else:
-    # 프로젝트 선택 UI
     project_options = {p['id']: f"{p['name']} (ID: {p['id']})" for p in projects}
-    # 이전에 선택한 ID가 유효한지 확인하고, 아니면 첫 번째 프로젝트를 기본값으로 설정
     if st.session_state.selected_project_id not in project_options:
         st.session_state.selected_project_id = list(project_options.keys())[0] if project_options else None
     
@@ -87,14 +85,12 @@ else:
         horizontal=True,
         key="project_selector_radio"
     )
-    # 선택 시 세션 상태 업데이트
     if selected_id:
         st.session_state.selected_project_id = selected_id
         st.session_state.selected_project_name = project_options.get(selected_id)
     
     st.divider()
 
-    # 테이블 헤더
     header_cols = st.columns([1, 3, 4, 2, 2])
     header_cols[0].write("**ID**")
     header_cols[1].write("**이름**")
@@ -102,7 +98,6 @@ else:
     header_cols[3].write("**생성일**")
     header_cols[4].write("**관리**")
     
-    # 프로젝트 목록 표시
     for proj in projects:
         row_cols = st.columns([1, 3, 4, 2, 2])
         row_cols[0].write(proj['id'])
