@@ -1,4 +1,4 @@
-# pages/1_요구정의.py (NameError 해결 버전)
+# pages/2_문제정의.py (안정 버전)
 
 import streamlit as st
 from datetime import datetime
@@ -7,14 +7,12 @@ import os
 
 # --- 경로 설정 ---
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# --- 필요한 모듈 import ---
-from persistence import ...
-from gemini_agent import ...
+from persistence import save_artifact, get_artifacts_for_project, get_all_projects
+from gemini_agent import generate_problem_definition, refine_content
 
 # --- 페이지 설정 ---
-st.set_page_config(page_title="모델 설계", layout="wide") # 여기에 해당 페이지 이름
-st.title("🏗️ 모델 설계") # 여기에 해당 페이지 이름과 아이콘
+st.set_page_config(page_title="문제정의", layout="wide")
+st.title("📋 문제정의")
 st.markdown("---")
 
 # --- 프로젝트 선택 확인 ---
@@ -22,11 +20,8 @@ selected_id = st.session_state.get('selected_project_id', None)
 if not selected_id:
     st.error("프로젝트를 선택해주세요. 메인 대시보드(app)로 돌아가 작업할 프로젝트를 먼저 선택해주세요.")
     st.stop()
-
-projects = get_all_projects()
-project_name = next((p['name'] for p in projects if p['id'] == selected_id), "알 수 없음")
+project_name = st.session_state.get('selected_project_name', 'N/A')
 st.header(f"프로젝트: {project_name}")
-st.caption(f"(Project ID: {selected_id})")
 
 # --- 2. 문제정의서 생성기 ---
 st.subheader("Step 1: 문제정의서 생성")
