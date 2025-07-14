@@ -13,8 +13,8 @@ from persistence import save_artifact, get_artifacts_for_project, get_all_projec
 from gemini_agent import generate_problem_definition, refine_content
 
 # --- 페이지 기본 설정 ---
-st.set_page_config(page_title="요구사항 정의", layout="wide")
-st.title("📋 요구사항 정의")
+st.set_page_config(page_title="문제정의", layout="wide")
+st.title("📋 문제정의") # 페이지 제목도 일관성 있게 변경
 st.markdown("---")
 
 # --- 1. 선택된 프로젝트 정보 확인 ---
