@@ -1,0 +1,15 @@
+[theme]
+# Primary-Color는 주로 버튼, 선택된 항목 등에 사용됩니다.
+primaryColor="#4A90E2"  # 시원한 파란색 계열
+
+# 메인 배경색
+backgroundColor="#F8FAFC" # bg-slate-50 과 유사한 밝은 회색
+
+# 사이드바, expander 등 부차적인 배경색
+secondaryBackgroundColor="#E7EDF4" # bg-[#e7edf4] 과 유사한 연한 회색
+
+# 기본 텍스트 색상
+textColor="#0D151C"
+
+# 폰트 설정 (가장 유사한 기본 폰트)
+font="sans serif"
