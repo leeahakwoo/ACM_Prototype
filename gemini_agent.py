@@ -193,3 +193,38 @@ def convert_markdown_to_df(markdown_table: str) -> pd.DataFrame:
     except Exception as e:
         print(f"DataFrame 변환 오류: {e}")
         return pd.DataFrame()
+
+def generate_governance_summary(mcp_context: dict, check_results: list) -> str:
+    """
+    MCP 컨텍스트와 자동 점검 결과를 바탕으로 종합 거버넌스 리포트를 생성합니다.
+    """
+    if not GEMINI_ENABLED:
+        return "오류: Gemini API 키가 설정되지 않았습니다."
+
+    # 분석에 필요한 정보들을 문자열로 변환
+    mcp_str = yaml.dump(mcp_context, allow_unicode=True, default_flow_style=False)
+    check_str = "\n".join(check_results)
+
+    prompt = f"""
+    당신은 AI 거버넌스 및 리스크 관리 최고 책임자(Chief AI Governance Officer)입니다.
+    아래 주어진 '모델 컨텍스트(MCP)'와 '자동 점검 결과'를 종합적으로 분석하여, 이 AI 모델의 현재 상태에 대한 상세하고 실행 가능한 '종합 거버넌스 리포트'를 마크다운 형식으로 작성해주세요.
+
+    ---
+    **[모델 컨텍스트 (MCP)]**
+    ```yaml
+    {mcp_str}
+    ```
+    ---
+    **[자동 점검 결과]**
+    {check_str}
+    ---
+
+    **리포트 작성 지시사항:**
+
+    1.  **Executive Summary:** 현재 모델의 거버넌스 상태를 한 문단으로 요약하고, '배포 가능', '조건부 배포 가능', '배포 위험' 등급 중 하나로 명확히 판단해주세요.
+    2.  **주요 리스크 분석:** '자동 점검 결과'에서 "미흡" 또는 "주의"로 표시된 항목들을 중심으로, 이것이 비즈니스, 법률, 윤리적 관점에서 어떤 구체적인 위험을 초래할 수 있는지 심층적으로 분석해주세요.
+    3.  **실행 가능한 권고안 (Actionable Recommendations):** 식별된 리스크를 해결하기 위해 개발팀이나 현업 부서가 즉시 수행해야 할 구체적인 조치들을 3~5가지 항목으로 제시해주세요.
+    """
+    
+    # _call_gemini_with_timeout 함수를 사용하여 안정적으로 호출
+    return _call_gemini_with_timeout(prompt)
